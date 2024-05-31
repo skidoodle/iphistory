@@ -12,14 +12,14 @@ import (
 )
 
 const (
-	url           = "https://one.one.one.one/cdn-cgi/trace"
-	filePath      = "ip_history.txt"
+	traceURL      = "https://one.one.one.one/cdn-cgi/trace"
+	ipHistoryPath = "ip_history.txt"
 	checkInterval = 30 * time.Second
 	maxRetries    = 3
 	retryDelay    = 10 * time.Second
 )
 
-func FetchPublicIP() (string, error) {
+func getPublicIP() (string, error) {
 	var ip string
 	var err error
 
@@ -35,7 +35,7 @@ func FetchPublicIP() (string, error) {
 }
 
 func fetchIP() (string, error) {
-	resp, err := http.Get(url)
+	resp, err := http.Get(traceURL)
 	if err != nil {
 		return "", err
 	}
@@ -54,8 +54,8 @@ func fetchIP() (string, error) {
 	return "", fmt.Errorf("IP address not found")
 }
 
-func ReadIPHistory() ([]string, error) {
-	file, err := os.Open(filePath)
+func readHistory() ([]string, error) {
+	file, err := os.Open(ipHistoryPath)
 	if os.IsNotExist(err) {
 		return []string{}, nil
 	} else if err != nil {
@@ -71,8 +71,8 @@ func ReadIPHistory() ([]string, error) {
 	return history, scanner.Err()
 }
 
-func WriteIPHistory(history []string) error {
-	file, err := os.Create(filePath)
+func writeHistory(history []string) error {
+	file, err := os.Create(ipHistoryPath)
 	if err != nil {
 		return err
 	}
@@ -88,10 +88,10 @@ func WriteIPHistory(history []string) error {
 	return writer.Flush()
 }
 
-func TrackIP(ipChan <-chan string) {
+func trackIP(ipChan <-chan string) {
 	var lastLoggedIP string
 	for ip := range ipChan {
-		history, err := ReadIPHistory()
+		history, err := readHistory()
 		if err != nil {
 			fmt.Println("Error reading IP history:", err)
 			continue
@@ -100,7 +100,7 @@ func TrackIP(ipChan <-chan string) {
 		entry := fmt.Sprintf("%s - %s", time.Now().Format("2006-01-02 15:04:05 MST"), ip)
 		if len(history) == 0 || !strings.Contains(history[0], ip) {
 			history = append([]string{entry}, history...)
-			if err := WriteIPHistory(history); err != nil {
+			if err := writeHistory(history); err != nil {
 				fmt.Println("Error writing IP history:", err)
 			}
 			fmt.Printf("📄 New IP logged: %s\n", entry)
@@ -114,13 +114,13 @@ func TrackIP(ipChan <-chan string) {
 	}
 }
 
-func ServeWeb() {
+func serveWeb() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "index.html")
 	})
 
 	http.HandleFunc("/history", func(w http.ResponseWriter, r *http.Request) {
-		history, err := ReadIPHistory()
+		history, err := readHistory()
 		if err != nil {
 			http.Error(w, "Error reading IP history", http.StatusInternalServerError)
 			return
@@ -145,7 +145,7 @@ func main() {
 
 	go func() {
 		for {
-			ip, err := FetchPublicIP()
+			ip, err := getPublicIP()
 			if err != nil {
 				fmt.Println("Error fetching public IP:", err)
 			} else {
@@ -155,6 +155,6 @@ func main() {
 		}
 	}()
 
-	go TrackIP(ipChan)
-	ServeWeb()
+	go trackIP(ipChan)
+	serveWeb()
 }
