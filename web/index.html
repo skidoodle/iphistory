@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>IP History</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+</head>
+<body>
+    <h1>IP History</h1>
+    <div class="controls">
+        <button class="export" onclick="exportToCSV()">Export to CSV</button>
+        <input type="text" id="searchBar" class="search-bar" placeholder="Search IP history..." autocomplete="off">
+    </div>
+    <table id="ipTable">
+        <thead>
+            <tr>
+                <th onclick="sortTable()">Timestamp</th>
+                <th>IP Address</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    <div class="pagination" id="pagination">
+        <button onclick="prevPage()" id="prevBtn" disabled>&laquo; Prev</button>
+        <button onclick="nextPage()" id="nextBtn" disabled>Next &raquo;</button>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

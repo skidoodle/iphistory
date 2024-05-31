@@ -115,9 +115,7 @@ func trackIP(ipChan <-chan string) {
 }
 
 func serveWeb() {
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "index.html")
-	})
+	http.Handle("/", http.StripPrefix("/", http.FileServer(http.Dir("web"))))
 
 	http.HandleFunc("/history", func(w http.ResponseWriter, r *http.Request) {
 		history, err := readHistory()

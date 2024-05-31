@@ -7,6 +7,6 @@ FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 WORKDIR /root/
 COPY --from=builder /app/iphistory .
-COPY --from=builder /app/index.html .
+COPY --from=builder /app/web ./web
 EXPOSE 8080
 CMD ["./iphistory"]
