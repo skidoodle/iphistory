@@ -54,4 +54,4 @@ docker run \
 
 ## License
 
-[MIT](https://github.com/skidoodle/iphistory/blob/main/license)
+[GPL-3.0](https://github.com/skidoodle/iphistory/blob/main/license)
