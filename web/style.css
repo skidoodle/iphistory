@@ -78,11 +78,11 @@ th {
     border: none;
 }
 th.sort-asc::after {
-    content: " \u2191";
+    content: " (newest first)";
     color: #fff;
 }
 th.sort-desc::after {
-    content: " \u2193";
+    content: " (oldest first)";
     color: #fff;
 }
 tbody tr:nth-child(even) {
