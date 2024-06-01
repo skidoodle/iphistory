@@ -1,8 +1,11 @@
-let ipHistory = [], filteredHistory = [], currentPage = 1, entriesPerPage = 10;
+let ipHistory = [],
+    filteredHistory = [],
+    currentPage = 1,
+    entriesPerPage = 10;
 
 $(document).ready(function() {
     $.getJSON('/history', function(data) {
-        ipHistory = data.map(entry => entry.split(" - "));
+        ipHistory = data;
         filteredHistory = ipHistory;
         displayTable();
     }).fail(function() {
@@ -11,7 +14,7 @@ $(document).ready(function() {
 
     $('#searchBar').on('input', function() {
         const query = $(this).val().toLowerCase();
-        filteredHistory = ipHistory.filter(row => row.some(cell => cell.toLowerCase().includes(query)));
+        filteredHistory = ipHistory.filter(entry => entry.timestamp.toLowerCase().includes(query) || entry.ip_address.toLowerCase().includes(query));
         currentPage = 1;
         displayTable();
     });
@@ -23,11 +26,10 @@ function displayTable() {
     const end = start + entriesPerPage;
     const currentEntries = filteredHistory.slice(start, end);
 
-    currentEntries.forEach(row => {
+    currentEntries.forEach(entry => {
         const tr = $('<tr>');
-        row.forEach(cell => {
-            tr.append($('<td>').text(cell));
-        });
+        tr.append($('<td>').text(entry.timestamp));
+        tr.append($('<td>').text(entry.ip_address));
         tbody.append(tr);
     });
     updatePaginationButtons();
@@ -53,21 +55,27 @@ function prevPage() {
 }
 
 function sortTable() {
-    const th = $('#ipTable th').eq(0);
-    const isAscending = !th.hasClass('sort-asc');
+    const isAscending = $('#ipTable th').eq(0).hasClass('sort-asc');
     const orderModifier = isAscending ? 1 : -1;
 
-    filteredHistory.sort((a, b) => a[0].localeCompare(b[0]) * orderModifier);
-    th.toggleClass('sort-asc', isAscending).toggleClass('sort-desc', !isAscending);
+    filteredHistory.sort((a, b) => (a.timestamp.localeCompare(b.timestamp)) * orderModifier);
+
+    $('#ipTable th').removeClass('sort-asc sort-desc');
+    $('#ipTable th').eq(0).addClass(isAscending ? 'sort-desc' : 'sort-asc');
 
     displayTable();
 }
 
 function exportToCSV() {
-    const rows = [['Timestamp', 'IP Address'], ...filteredHistory];
+    const rows = [
+        ['Timestamp', 'IP Address'], ...filteredHistory.map(entry => [entry.timestamp, entry.ip_address])
+    ];
     const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
     const encodedUri = encodeURI(csvContent);
-    const link = $('<a>').attr({href: encodedUri, download: 'ip_history.csv'});
+    const link = $('<a>').attr({
+        href: encodedUri,
+        download: 'ip_history.csv'
+    });
 
     $('body').append(link);
     link[0].click();

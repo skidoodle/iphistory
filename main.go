@@ -19,6 +19,11 @@ const (
 	retryDelay    = 10 * time.Second
 )
 
+type IPRecord struct {
+	Timestamp string `json:"timestamp"`
+	IPAddress string `json:"ip_address"`
+}
+
 func getPublicIP() (string, error) {
 	var ip string
 	var err error
@@ -54,24 +59,31 @@ func fetchIP() (string, error) {
 	return "", fmt.Errorf("IP address not found")
 }
 
-func readHistory() ([]string, error) {
+func readHistory() ([]IPRecord, error) {
 	file, err := os.Open(ipHistoryPath)
 	if os.IsNotExist(err) {
-		return []string{}, nil
+		return []IPRecord{}, nil
 	} else if err != nil {
 		return nil, err
 	}
 	defer file.Close()
 
-	var history []string
+	var history []IPRecord
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		history = append(history, scanner.Text())
+		parts := strings.Split(scanner.Text(), " - ")
+		if len(parts) == 2 {
+			record := IPRecord{
+				Timestamp: parts[0],
+				IPAddress: parts[1],
+			}
+			history = append(history, record)
+		}
 	}
 	return history, scanner.Err()
 }
 
-func writeHistory(history []string) error {
+func writeHistory(history []IPRecord) error {
 	file, err := os.Create(ipHistoryPath)
 	if err != nil {
 		return err
@@ -80,7 +92,7 @@ func writeHistory(history []string) error {
 
 	writer := bufio.NewWriter(file)
 	for _, entry := range history {
-		_, err := writer.WriteString(entry + "\n")
+		_, err := writer.WriteString(fmt.Sprintf("%s - %s\n", entry.Timestamp, entry.IPAddress))
 		if err != nil {
 			return err
 		}
@@ -98,8 +110,8 @@ func trackIP(ipChan <-chan string) {
 		}
 
 		entry := fmt.Sprintf("%s - %s", time.Now().Format("2006-01-02 15:04:05 MST"), ip)
-		if len(history) == 0 || !strings.Contains(history[0], ip) {
-			history = append([]string{entry}, history...)
+		if len(history) == 0 || !strings.Contains(history[0].IPAddress, ip) {
+			history = append([]IPRecord{{Timestamp: time.Now().Format("2006-01-02 15:04:05 MST"), IPAddress: ip}}, history...)
 			if err := writeHistory(history); err != nil {
 				fmt.Println("Error writing IP history:", err)
 			}

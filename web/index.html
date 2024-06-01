@@ -6,9 +6,11 @@
     <title>IP History</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="script.js"></script>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>IP History</h1>
+    <h1><a href="/">IP History</a></h1>
     <div class="controls">
         <button class="export" onclick="exportToCSV()">Export to CSV</button>
         <input type="text" id="searchBar" class="search-bar" placeholder="Search IP history..." autocomplete="off">
@@ -26,6 +28,5 @@
         <button onclick="prevPage()" id="prevBtn" disabled>&laquo; Prev</button>
         <button onclick="nextPage()" id="nextBtn" disabled>Next &raquo;</button>
     </div>
-    <script src="script.js"></script>
 </body>
 </html>
