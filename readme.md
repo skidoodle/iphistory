@@ -29,15 +29,17 @@ go run main.go
 
 ```yaml
 version: '3.9'
+
 services:
   iphistory:
     container_name: iphistory
-      image: 'ghcr.io/skidoodle/iphistory:main'
-      restart: unless-stopped
-      ports:
-        - '8080:8080'
-      volumes:
-        - data:/app
+    image: 'ghcr.io/skidoodle/iphistory:main'
+    restart: unless-stopped
+    ports:
+      - '8080:8080'
+    volumes:
+      - data:/app
+
 volumes:
   data:
     driver: local
