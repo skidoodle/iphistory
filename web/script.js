@@ -8,6 +8,7 @@ $(document).ready(function() {
         ipHistory = data;
         filteredHistory = ipHistory;
         displayTable();
+        updateTotalIPs();
     }).fail(function() {
         console.error('Error fetching IP history');
     });
@@ -17,6 +18,7 @@ $(document).ready(function() {
         filteredHistory = ipHistory.filter(entry => entry.timestamp.toLowerCase().includes(query) || entry.ip_address.toLowerCase().includes(query));
         currentPage = 1;
         displayTable();
+        updateTotalIPs();
     });
 });
 
@@ -33,6 +35,12 @@ function displayTable() {
         tbody.append(tr);
     });
     updatePaginationButtons();
+    updateTotalIPs();
+}
+
+function updateTotalIPs() {
+    const totalIPs = filteredHistory.length;
+    $('#searchBar').attr('placeholder', `Search IP history... (Total IPs: ${totalIPs})`);
 }
 
 function updatePaginationButtons() {
