@@ -8,8 +8,8 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - data:/app
+      - iphistory_data:/app
 
 volumes:
-  data:
-    driver: local
+  iphistory_data:
+    external: false
