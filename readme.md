@@ -32,17 +32,17 @@ version: '3.9'
 
 services:
   iphistory:
+    image: ghcr.io/skidoodle/iphistory:main
     container_name: iphistory
-    image: 'ghcr.io/skidoodle/iphistory:main'
     restart: unless-stopped
     ports:
-      - '8080:8080'
+      - "8080:8080"
     volumes:
-      - data:/app
+      - iphistory_data:/app
 
 volumes:
-  data:
-    driver: local
+  iphistory_data:
+    external: false
 ```
 
 ### Docker Run
