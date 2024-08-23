@@ -15,7 +15,11 @@ $(document).ready(function() {
 
     $('#searchBar').on('input', function() {
         const query = $(this).val().toLowerCase();
-        filteredHistory = ipHistory.filter(entry => entry.timestamp.toLowerCase().includes(query) || entry.ip_address.toLowerCase().includes(query));
+        filteredHistory = ipHistory.filter(entry =>
+            entry.timestamp.toLowerCase().includes(query) ||
+            (entry.ipv4 && entry.ipv4.toLowerCase().includes(query)) ||
+            (entry.ipv6 && entry.ipv6.toLowerCase().includes(query))
+        );
         currentPage = 1;
         displayTable();
         updateTotalIPs();
@@ -31,7 +35,8 @@ function displayTable() {
     currentEntries.forEach(entry => {
         const tr = $('<tr>');
         tr.append($('<td>').text(entry.timestamp));
-        tr.append($('<td>').text(entry.ip_address));
+        tr.append($('<td>').text(entry.ipv4 || 'N/A').css('min-width', '120px')); // Set static width
+        tr.append($('<td>').text(entry.ipv6 || 'N/A').css('min-width', '180px')); // Set static width
         tbody.append(tr);
     });
     updatePaginationButtons();
@@ -62,21 +67,27 @@ function prevPage() {
     }
 }
 
-function sortTable() {
-    const isAscending = $('#ipTable th').eq(0).hasClass('sort-asc');
+function sortTable(field) {
+    const isAscending = $(`#ipTable th:contains(${field.charAt(0).toUpperCase() + field.slice(1)})`).hasClass('sort-asc');
     const orderModifier = isAscending ? 1 : -1;
 
-    filteredHistory.sort((a, b) => (a.timestamp.localeCompare(b.timestamp)) * orderModifier);
+    filteredHistory.sort((a, b) => {
+        if (a[field] && b[field]) {
+            return (a[field].localeCompare(b[field])) * orderModifier;
+        }
+        return 0;
+    });
 
     $('#ipTable th').removeClass('sort-asc sort-desc');
-    $('#ipTable th').eq(0).addClass(isAscending ? 'sort-desc' : 'sort-asc');
+    $(`#ipTable th:contains(${field.charAt(0).toUpperCase() + field.slice(1)})`).addClass(isAscending ? 'sort-desc' : 'sort-asc');
 
     displayTable();
 }
 
 function exportToCSV() {
     const rows = [
-        ['Timestamp', 'IP Address'], ...filteredHistory.map(entry => [entry.timestamp, entry.ip_address])
+        ['Timestamp', 'IPv4 Address', 'IPv6 Address'],
+        ...filteredHistory.map(entry => [entry.timestamp, entry.ipv4 || '', entry.ipv6 || ''])
     ];
     const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
     const encodedUri = encodeURI(csvContent);

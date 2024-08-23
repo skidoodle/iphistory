@@ -1,3 +1,9 @@
+* {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    touch-action: manipulation;
+}
+
 body {
     font-family: Arial, sans-serif;
     background-color: #222;
@@ -58,18 +64,21 @@ h1 a:hover {
 }
 table {
     width: 90%;
-    max-width: 800px;
+    max-width: 1200px;
     border-collapse: collapse;
     margin: 0 auto 20px;
     border-radius: 10px;
     overflow: hidden;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
     background-color: #333;
+    table-layout: fixed;
 }
 th, td {
     border: 1px solid #444;
     padding: 12px;
     text-align: left;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 th {
     cursor: pointer;
@@ -107,9 +116,14 @@ tbody tr:nth-child(even) {
     background-color: #555;
     cursor: not-allowed;
 }
+
 @media (max-width: 600px) {
     th, td {
         padding: 8px;
+        font-size: 14px;
+    }
+    table {
+        font-size: 14px;
     }
     .export, .pagination button {
         padding: 8px 12px;
@@ -118,5 +132,17 @@ tbody tr:nth-child(even) {
         margin-left: 10px;
         padding: 8px;
         font-size: 14px;
+    }
+    .controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .export {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+    .search-bar {
+        width: 100%;
+        margin-left: 0;
     }
 }

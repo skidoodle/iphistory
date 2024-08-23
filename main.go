@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,8 +11,9 @@ import (
 )
 
 const (
-	traceURL      = "https://one.one.one.one/cdn-cgi/trace"
-	ipHistoryPath = "ip_history.txt"
+	ipv4URL       = "https://4.ident.me/"
+	ipv6URL       = "https://6.ident.me/"
+	ipHistoryPath = "history.json"
 	checkInterval = 30 * time.Second
 	maxRetries    = 3
 	retryDelay    = 10 * time.Second
@@ -21,26 +21,41 @@ const (
 
 type IPRecord struct {
 	Timestamp string `json:"timestamp"`
-	IPAddress string `json:"ip_address"`
+	IPv4      string `json:"ipv4"`
+	IPv6      string `json:"ipv6"`
 }
 
-func getPublicIP() (string, error) {
-	var ip string
+func getPublicIPs() (string, string, error) {
+	var ipv4, ipv6 string
 	var err error
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		ip, err = fetchIP()
+		ipv4, ipv6, err = fetchIPs()
 		if err == nil {
-			return ip, nil
+			return ipv4, ipv6, nil
 		}
-		fmt.Printf("Attempt %d: Error fetching IP: %v\n", attempt, err)
+		fmt.Printf("Attempt %d: Error fetching IPs: %v\n", attempt, err)
 		time.Sleep(retryDelay)
 	}
-	return "", err
+	return "", "", err
 }
 
-func fetchIP() (string, error) {
-	resp, err := http.Get(traceURL)
+func fetchIPs() (string, string, error) {
+	ipv4, err := fetchIP(ipv4URL)
+	if err != nil {
+		return "", "", err
+	}
+
+	ipv6, err := fetchIP(ipv6URL)
+	if err != nil {
+		fmt.Println("Warning: Could not fetch IPv6 address:", err)
+	}
+
+	return ipv4, ipv6, nil
+}
+
+func fetchIP(url string) (string, error) {
+	resp, err := http.Get(url)
 	if err != nil {
 		return "", err
 	}
@@ -51,12 +66,7 @@ func fetchIP() (string, error) {
 		return "", err
 	}
 
-	for _, line := range strings.Split(string(body), "\n") {
-		if strings.HasPrefix(line, "ip=") {
-			return strings.TrimPrefix(line, "ip="), nil
-		}
-	}
-	return "", fmt.Errorf("IP address not found")
+	return strings.TrimSpace(string(body)), nil
 }
 
 func readHistory() ([]IPRecord, error) {
@@ -68,19 +78,22 @@ func readHistory() ([]IPRecord, error) {
 	}
 	defer file.Close()
 
-	var history []IPRecord
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		parts := strings.Split(scanner.Text(), " - ")
-		if len(parts) == 2 {
-			record := IPRecord{
-				Timestamp: parts[0],
-				IPAddress: parts[1],
-			}
-			history = append(history, record)
-		}
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return nil, err
 	}
-	return history, scanner.Err()
+
+	// Check if the file is empty
+	if fileInfo.Size() == 0 {
+		return []IPRecord{}, nil
+	}
+
+	var history []IPRecord
+	err = json.NewDecoder(file).Decode(&history)
+	if err != nil {
+		return nil, err
+	}
+	return history, nil
 }
 
 func writeHistory(history []IPRecord) error {
@@ -90,41 +103,53 @@ func writeHistory(history []IPRecord) error {
 	}
 	defer file.Close()
 
-	writer := bufio.NewWriter(file)
-	for _, entry := range history {
-		_, err := writer.WriteString(fmt.Sprintf("%s - %s\n", entry.Timestamp, entry.IPAddress))
-		if err != nil {
-			return err
-		}
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ") // Pretty-print with indentation
+	err = encoder.Encode(history)
+	if err != nil {
+		return err
 	}
-	return writer.Flush()
+	return nil
 }
 
-func trackIP(ipChan <-chan string) {
-	var lastLoggedIP string
-	for ip := range ipChan {
+func trackIP(ipChan <-chan IPRecord) {
+	var lastLoggedIP IPRecord
+	hasNotifiedUpToDate := false
+
+	for ipRecord := range ipChan {
 		history, err := readHistory()
 		if err != nil {
 			fmt.Println("Error reading IP history:", err)
 			continue
 		}
 
-		entry := fmt.Sprintf("%s - %s", time.Now().Format("2006-01-02 15:04:05 MST"), ip)
-		if len(history) == 0 || !strings.Contains(history[0].IPAddress, ip) {
-			history = append([]IPRecord{{Timestamp: time.Now().Format("2006-01-02 15:04:05 MST"), IPAddress: ip}}, history...)
-			if err := writeHistory(history); err != nil {
-				fmt.Println("Error writing IP history:", err)
-			}
-			fmt.Printf("📄 New IP logged: %s\n", entry)
-			lastLoggedIP = ip
-		} else {
-			if lastLoggedIP != ip {
-				fmt.Println("🤷 IP is already up to date")
-				lastLoggedIP = ip
-			}
+		if len(history) > 0 {
+			lastLoggedIP = history[0]
 		}
+
+		// Check if IPs are the same as the last logged one
+		if ipRecord.IPv4 == lastLoggedIP.IPv4 && ipRecord.IPv6 == lastLoggedIP.IPv6 {
+			if !hasNotifiedUpToDate {
+				fmt.Println("🤷 IPs are already up to date")
+				hasNotifiedUpToDate = true
+			}
+			continue
+		}
+
+		// Reset the notification flag when IP changes
+		hasNotifiedUpToDate = false
+
+		ipRecord.Timestamp = time.Now().Format("2006-01-02 15:04:05")
+		history = append([]IPRecord{ipRecord}, history...)
+		if err := writeHistory(history); err != nil {
+			fmt.Println("Error writing IP history:", err)
+			continue
+		}
+
+		fmt.Printf("📄 New IP logged: {Timestamp: %s, IPv4: %s, IPv6: %s}\n", ipRecord.Timestamp, ipRecord.IPv4, ipRecord.IPv6)
 	}
 }
+
 
 func serveWeb() {
 	http.Handle("/", http.StripPrefix("/", http.FileServer(http.Dir("web"))))
@@ -151,15 +176,15 @@ func serveWeb() {
 }
 
 func main() {
-	ipChan := make(chan string)
+	ipChan := make(chan IPRecord)
 
 	go func() {
 		for {
-			ip, err := getPublicIP()
+			ipv4, ipv6, err := getPublicIPs()
 			if err != nil {
-				fmt.Println("Error fetching public IP:", err)
+				fmt.Println("Error fetching public IPs:", err)
 			} else {
-				ipChan <- ip
+				ipChan <- IPRecord{IPv4: ipv4, IPv6: ipv6}
 			}
 			time.Sleep(checkInterval)
 		}
