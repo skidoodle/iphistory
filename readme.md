@@ -2,7 +2,7 @@
 
 The IPHistory project is a simple yet effective solution for tracking and logging the public IP address of your network. It periodically fetches the public IP address and logs it to a file, while also providing a web interface to view the IP history in a clean UI and an endpoint (`/history`) for JSON format.
 
-![iphistory](https://github.com/user-attachments/assets/4c4ea170-94ef-42fc-b3b5-5db735789855)
+![iphistory](https://github.com/user-attachments/assets/daca427a-91ff-4dd8-a72a-83cbb59db3b2)
 
 ## Running Locally
 
