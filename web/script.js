@@ -1,43 +1,59 @@
-let ipHistory = [],
-    filteredHistory = [],
-    currentPage = 1,
-    entriesPerPage = 10;
+let ipHistory = [];
+let filteredHistory = [];
+let currentPage = 1;
+let entriesPerPage = 10;
 
-$(document).ready(function() {
-    $.getJSON('/history', function(data) {
-        ipHistory = data;
-        filteredHistory = ipHistory;
-        displayTable();
-        updateTotalIPs();
-    }).fail(function() {
-        console.error('Error fetching IP history');
-    });
+document.addEventListener('DOMContentLoaded', () => {
+    fetch('/history')
+        .then(response => response.json())
+        .then(data => {
+            ipHistory = data;
+            filteredHistory = ipHistory;
+            displayTable();
+            updateTotalIPs();
+        })
+        .catch(error => console.error('Error fetching IP history:', error));
 
-    $('#searchBar').on('input', function() {
-        const query = $(this).val().toLowerCase();
-        filteredHistory = ipHistory.filter(entry =>
-            entry.timestamp.toLowerCase().includes(query) ||
-            (entry.ipv4 && entry.ipv4.toLowerCase().includes(query)) ||
-            (entry.ipv6 && entry.ipv6.toLowerCase().includes(query))
-        );
-        currentPage = 1;
-        displayTable();
-        updateTotalIPs();
-    });
+    const searchBar = document.getElementById('searchBar');
+    searchBar.addEventListener('input', handleSearch);
+
+    document.getElementById('prevBtn').addEventListener('click', prevPage);
+    document.getElementById('nextBtn').addEventListener('click', nextPage);
+    document.getElementById('exportBtn').addEventListener('click', exportToCSV);
+    document.getElementById('sortTimestamp').addEventListener('click', () => sortTable('timestamp'));
+    document.getElementById('sortIPv4').addEventListener('click', () => sortTable('ipv4'));
+    document.getElementById('sortIPv6').addEventListener('click', () => sortTable('ipv6'));
 });
 
+
+function handleSearch() {
+    const query = this.value.toLowerCase();
+    filteredHistory = ipHistory.filter(entry =>
+        entry.timestamp.toLowerCase().includes(query) ||
+        (entry.ipv4 && entry.ipv4.toLowerCase().includes(query)) ||
+        (entry.ipv6 && entry.ipv6.toLowerCase().includes(query))
+    );
+    currentPage = 1;
+    displayTable();
+    updateTotalIPs();
+}
+
 function displayTable() {
-    const tbody = $('#ipTable tbody').empty();
+    const tbody = document.querySelector('#ipTable tbody');
+    tbody.innerHTML = '';
+
     const start = (currentPage - 1) * entriesPerPage;
     const end = start + entriesPerPage;
     const currentEntries = filteredHistory.slice(start, end);
 
     currentEntries.forEach(entry => {
-        const tr = $('<tr>');
-        tr.append($('<td>').text(entry.timestamp));
-        tr.append($('<td>').text(entry.ipv4 || 'N/A').css('min-width', '120px')); // Set static width
-        tr.append($('<td>').text(entry.ipv6 || 'N/A').css('min-width', '180px')); // Set static width
-        tbody.append(tr);
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${entry.timestamp}</td>
+            <td>${entry.ipv4 || 'N/A'}</td>
+            <td>${entry.ipv6 || 'N/A'}</td>
+        `;
+        tbody.appendChild(row);
     });
     updatePaginationButtons();
     updateTotalIPs();
@@ -45,12 +61,15 @@ function displayTable() {
 
 function updateTotalIPs() {
     const totalIPs = filteredHistory.length;
-    $('#searchBar').attr('placeholder', `Search IP history... (Total IPs: ${totalIPs})`);
+    const searchBar = document.getElementById('searchBar');
+    searchBar.placeholder = `Search IP history... (Total IPs: ${totalIPs})`;
 }
 
 function updatePaginationButtons() {
-    $('#prevBtn').prop('disabled', currentPage === 1);
-    $('#nextBtn').prop('disabled', currentPage === Math.ceil(filteredHistory.length / entriesPerPage));
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    prevBtn.disabled = currentPage === 1;
+    nextBtn.disabled = currentPage === Math.ceil(filteredHistory.length / entriesPerPage);
 }
 
 function nextPage() {
@@ -68,18 +87,12 @@ function prevPage() {
 }
 
 function sortTable(field) {
-    const isAscending = $(`#ipTable th:contains(${field.charAt(0).toUpperCase() + field.slice(1)})`).hasClass('sort-asc');
-    const orderModifier = isAscending ? 1 : -1;
+    const isAscending = document.getElementById(`sort${capitalizeFirstLetter(field)}`).classList.contains('sort-asc');
+    filteredHistory.sort((a, b) => (a[field] && b[field]) ? a[field].localeCompare(b[field]) * (isAscending ? 1 : -1) : 0);
 
-    filteredHistory.sort((a, b) => {
-        if (a[field] && b[field]) {
-            return (a[field].localeCompare(b[field])) * orderModifier;
-        }
-        return 0;
-    });
-
-    $('#ipTable th').removeClass('sort-asc sort-desc');
-    $(`#ipTable th:contains(${field.charAt(0).toUpperCase() + field.slice(1)})`).addClass(isAscending ? 'sort-desc' : 'sort-asc');
+    // Toggle the sort direction class
+    document.querySelectorAll('th').forEach(th => th.classList.remove('sort-asc', 'sort-desc'));
+    document.getElementById(`sort${capitalizeFirstLetter(field)}`).classList.add(isAscending ? 'sort-desc' : 'sort-asc');
 
     displayTable();
 }
@@ -89,14 +102,14 @@ function exportToCSV() {
         ['Timestamp', 'IPv4 Address', 'IPv6 Address'],
         ...filteredHistory.map(entry => [entry.timestamp, entry.ipv4 || '', entry.ipv6 || ''])
     ];
-    const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = $('<a>').attr({
-        href: encodedUri,
-        download: 'ip_history.csv'
-    });
+    const csvContent = rows.map(row => row.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'ip_history.csv';
+    link.click();
+}
 
-    $('body').append(link);
-    link[0].click();
-    link.remove();
+function capitalizeFirstLetter(string) {
+    return string.charAt(0).toUpperCase() + string.slice(1);
 }
