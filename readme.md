@@ -1,59 +1,22 @@
 # IPHistory
 
-The IPHistory project is a simple yet effective solution for tracking and logging the public IP address of your network. It periodically fetches the public IP address and logs it to a file, while also providing a web interface to view the IP history in a clean UI and an endpoint (`/history`) for JSON format.
+A simple tool for tracking your network's public IP address. It periodically checks for changes and logs them to a local database, providing a clean, searchable web interface to browse your history. It's designed to be lightweight, self-reliant, and fast without requiring any maintenance.
 
-![iphistory](https://github.com/user-attachments/assets/daca427a-91ff-4dd8-a72a-83cbb59db3b2)
-
-## Running Locally
-
-### With Docker
-
-```sh
-git clone https://github.com/skidoodle/iphistory
-cd iphistory
-docker build -t iphistory:main .
-docker run -p 8080:8080 iphistory:main
-```
-
-### Without Docker
-
-```sh
-git clone https://github.com/skidoodle/iphistory
-cd iphistory
-go run main.go
-```
-
-## Deploying
-
-### Docker Compose
+## Deploy
 
 ```yaml
-version: '3.9'
-
 services:
   iphistory:
-    image: ghcr.io/skidoodle/iphistory:main
+    image: ghcr.io/skidoodle/iphistory
     container_name: iphistory
     restart: unless-stopped
     ports:
       - "8080:8080"
     volumes:
-      - iphistory_data:/app
+      - data:/app
 
 volumes:
-  iphistory_data:
-    external: false
-```
-
-### Docker Run
-
-```sh
-docker run \
-  -d \
-  --name=iphistory \
-  --restart=unless-stopped \
-  -p 8080:8080 \
-  ghcr.io/skidoodle/iphistory:main
+  data:
 ```
 
 ## License

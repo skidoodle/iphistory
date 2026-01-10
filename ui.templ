@@ -1,0 +1,118 @@
+package main
+
+import "fmt"
+
+func pathBuilder(page int, query string) string {
+	base := "/"
+	if page > 1 {
+		base = fmt.Sprintf("/p/%d", page)
+	}
+	if query != "" {
+		return fmt.Sprintf("%s?q=%s", base, query)
+	}
+	return base
+}
+
+templ MainContent(records []Record, query string, page int, hasMore bool) {
+	<div id="main-content" class="fade-in">
+		if page == 1 && query == "" && len(records) > 0 {
+			<section class="current-ip-card">
+				<div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem;">Current Public IP</div>
+				<div class="ip-display">{ records[0].IP }</div>
+				<div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">
+					Last observed: { records[0].Timestamp.Format("Jan 02, 15:04:05 MST") }
+				</div>
+			</section>
+		}
+		<table class="history-table">
+			<thead>
+				<tr><th>Timestamp</th><th>Observed IP</th></tr>
+			</thead>
+			<tbody>
+				for _, r := range records {
+					<tr>
+						<td style="color: var(--text-muted);">{ r.Timestamp.Format("2006-01-02 15:04:05") }</td>
+						<td style="font-family: ui-monospace, monospace; font-weight: 500;">{ r.IP }</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+		<div class="pagination">
+			if page > 1 {
+				<a
+					href={ templ.SafeURL(pathBuilder(page-1, query)) }
+					hx-get={ pathBuilder(page-1, query) }
+					hx-target="#main-content"
+					hx-push-url="true"
+					class="nav-link"
+				>← Previous</a>
+			} else {
+				<a class="nav-link disabled">← Previous</a>
+			}
+			<span style="font-size: 0.875rem; color: var(--text-muted);">Page { fmt.Sprint(page) }</span>
+			if hasMore {
+				<a
+					href={ templ.SafeURL(pathBuilder(page+1, query)) }
+					hx-get={ pathBuilder(page+1, query) }
+					hx-target="#main-content"
+					hx-push-url="true"
+					class="nav-link"
+				>Next →</a>
+			} else {
+				<a class="nav-link disabled">Next →</a>
+			}
+		</div>
+	</div>
+}
+
+templ Page(records []Record, query string, page int, hasMore bool) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>IP History</title>
+			<link rel="icon" href="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"/>
+			<script src="https://unpkg.com/htmx.org@1.9.10"></script>
+			<style>
+				:root { --bg: #0a0a0c; --card: #16161a; --border: #2d2d33; --text: #ececed; --text-muted: #94949e; --primary: #3b82f6; }
+				html { scrollbar-gutter: stable; overflow-y: auto; }
+				* { box-sizing: border-box; margin: 0; padding: 0; }
+				body { font-family: ui-sans-serif, system-ui, sans-serif; background-color: var(--bg); color: var(--text); line-height: 1.6; padding: 2rem 1rem; }
+				.container { max-width: 800px; margin-inline: auto; }
+				header { margin-bottom: 2.5rem; }
+				h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: -0.025em; }
+				a.title-link { text-decoration: none; color: inherit; display: inline-block; }
+				a.title-link:hover h1 { color: var(--primary); }
+				.search-form { margin-bottom: 2rem; display: flex; gap: 0.5rem; }
+				.search-input { flex: 1; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; color: var(--text); font-size: 1rem; }
+				.search-input:focus { outline: none; border-color: var(--primary); }
+				.btn-search { background: var(--primary); color: white; border: none; padding: 0 1.5rem; border-radius: 8px; font-weight: 600; cursor: pointer; }
+				.current-ip-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem; }
+				.ip-display { font-family: ui-monospace, monospace; font-size: 2rem; font-weight: 700; color: var(--primary); }
+				.history-table { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+				th, td { padding: 1rem; text-align: left; border-bottom: 1px solid var(--border); }
+				th { font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); background: rgba(255,255,255,0.02); }
+				.pagination { display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; }
+				.nav-link { background: var(--card); border: 1px solid var(--border); color: var(--text); padding: 0.5rem 1rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; }
+				.nav-link:hover { border-color: var(--primary); }
+				.nav-link.disabled { opacity: 0.2; pointer-events: none; }
+				.fade-in { animation: fadeIn 0.15s ease-out; }
+				@keyframes fadeIn { from { opacity: 0.5; transform: translateY(2px); } to { opacity: 1; transform: translateY(0); } }
+			</style>
+		</head>
+		<body hx-boost="true">
+			<main class="container">
+				<header>
+					<a href="/" hx-boost="false" class="title-link"><h1>IP History</h1></a>
+					<p style="color: var(--text-muted); font-size: 0.875rem;">A simple timeline of your public IP changes</p>
+				</header>
+				<form class="search-form" hx-get="/" hx-target="#main-content" hx-push-url="true">
+					<input type="text" name="q" class="search-input" placeholder="Search..." value={ query } autocomplete="off"/>
+					<button type="submit" class="btn-search">Search</button>
+				</form>
+				@MainContent(records, query, page, hasMore)
+			</main>
+		</body>
+	</html>
+}

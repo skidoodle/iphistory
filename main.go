@@ -1,195 +1,151 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-	"io"
+	"context"
+	"errors"
+	"log/slog"
+	"net"
 	"net/http"
 	"os"
+	"os/signal"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 )
 
-const (
-	ipv4URL       = "https://4.ident.me/"
-	ipv6URL       = "https://6.ident.me/"
-	ipHistoryPath = "history.json"
-	checkInterval = 30 * time.Second
-	maxRetries    = 3
-	retryDelay    = 10 * time.Second
-)
-
-type IPRecord struct {
-	Timestamp string `json:"timestamp"`
-	IPv4      string `json:"ipv4"`
-	IPv6      string `json:"ipv6"`
-}
-
-func getPublicIPs() (string, string, error) {
-	var ipv4, ipv6 string
-	var err error
-
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		ipv4, ipv6, err = fetchIPs()
-		if err == nil {
-			return ipv4, ipv6, nil
-		}
-		fmt.Printf("Attempt %d: Error fetching IPs: %v\n", attempt, err)
-		time.Sleep(retryDelay)
-	}
-	return "", "", err
-}
-
-func fetchIPs() (string, string, error) {
-	ipv4, err := fetchIP(ipv4URL)
-	if err != nil {
-		return "", "", err
-	}
-
-	ipv6, err := fetchIP(ipv6URL)
-	if err != nil {
-		fmt.Println("Warning: Could not fetch IPv6 address:", err)
-	}
-
-	return ipv4, ipv6, nil
-}
-
-func fetchIP(url string) (string, error) {
-	resp, err := http.Get(url)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	return strings.TrimSpace(string(body)), nil
-}
-
-func readHistory() ([]IPRecord, error) {
-	file, err := os.Open(ipHistoryPath)
-	if os.IsNotExist(err) {
-		return []IPRecord{}, nil
-	} else if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	fileInfo, err := file.Stat()
-	if err != nil {
-		return nil, err
-	}
-
-	// Check if the file is empty
-	if fileInfo.Size() == 0 {
-		return []IPRecord{}, nil
-	}
-
-	var history []IPRecord
-	err = json.NewDecoder(file).Decode(&history)
-	if err != nil {
-		return nil, err
-	}
-	return history, nil
-}
-
-func writeHistory(history []IPRecord) error {
-	file, err := os.Create(ipHistoryPath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	encoder := json.NewEncoder(file)
-	encoder.SetIndent("", "  ") // Pretty-print with indentation
-	err = encoder.Encode(history)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func trackIP(ipChan <-chan IPRecord) {
-	var lastLoggedIP IPRecord
-	hasNotifiedUpToDate := false
-
-	for ipRecord := range ipChan {
-		history, err := readHistory()
-		if err != nil {
-			fmt.Println("Error reading IP history:", err)
-			continue
-		}
-
-		if len(history) > 0 {
-			lastLoggedIP = history[0]
-		}
-
-		// Check if IPs are the same as the last logged one
-		if ipRecord.IPv4 == lastLoggedIP.IPv4 && ipRecord.IPv6 == lastLoggedIP.IPv6 {
-			if !hasNotifiedUpToDate {
-				fmt.Println("🤷 IPs are already up to date")
-				hasNotifiedUpToDate = true
-			}
-			continue
-		}
-
-		// Reset the notification flag when IP changes
-		hasNotifiedUpToDate = false
-
-		ipRecord.Timestamp = time.Now().Format("2006-01-02 15:04:05")
-		history = append([]IPRecord{ipRecord}, history...)
-		if err := writeHistory(history); err != nil {
-			fmt.Println("Error writing IP history:", err)
-			continue
-		}
-
-		fmt.Printf("📄 New IP logged: {Timestamp: %s, IPv4: %s, IPv6: %s}\n", ipRecord.Timestamp, ipRecord.IPv4, ipRecord.IPv6)
-	}
-}
-
-
-func serveWeb() {
-	http.Handle("/", http.StripPrefix("/", http.FileServer(http.Dir("web"))))
-
-	http.HandleFunc("/history", func(w http.ResponseWriter, r *http.Request) {
-		history, err := readHistory()
-		if err != nil {
-			http.Error(w, "Error reading IP history", http.StatusInternalServerError)
-			return
-		}
-
-		jsonData, err := json.Marshal(history)
-		if err != nil {
-			http.Error(w, "Error converting history to JSON", http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonData)
-	})
-
-	fmt.Println("Starting server on :8080")
-	http.ListenAndServe(":8080", nil)
-}
+//go:generate templ generate
 
 func main() {
-	ipChan := make(chan IPRecord)
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	go func() {
-		for {
-			ipv4, ipv6, err := getPublicIPs()
-			if err != nil {
-				fmt.Println("Error fetching public IPs:", err)
-			} else {
-				ipChan <- IPRecord{IPv4: ipv4, IPv6: ipv6}
-			}
-			time.Sleep(checkInterval)
+	store, err := NewStore("history.db")
+	if err != nil {
+		logger.Error("db init failed", "err", err)
+		os.Exit(1)
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	g, gCtx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
+
+		type provider struct {
+			server string
+			host   string
+			isTXT  bool
 		}
-	}()
 
-	go trackIP(ipChan)
-	serveWeb()
+		providers := []provider{
+			{server: "8.8.8.8:53", host: "o-o.myaddr.l.google.com", isTXT: true},
+			{server: "208.67.222.222:53", host: "myip.opendns.com", isTXT: false},
+		}
+
+		for {
+			var detectedIP string
+			for _, p := range providers {
+				resolver := &net.Resolver{
+					PreferGo: true,
+					Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+						d := net.Dialer{Timeout: 5 * time.Second}
+						return d.DialContext(ctx, "udp", p.server)
+					},
+				}
+
+				var raw string
+				if p.isTXT {
+					txt, err := resolver.LookupTXT(gCtx, p.host)
+					if err == nil && len(txt) > 0 {
+						raw = strings.Trim(txt[0], "\"")
+					}
+				} else {
+					ips, err := resolver.LookupHost(gCtx, p.host)
+					if err == nil && len(ips) > 0 {
+						raw = ips[0]
+					}
+				}
+
+				if ip := net.ParseIP(raw); ip != nil {
+					detectedIP = ip.String()
+					break
+				}
+			}
+
+			if detectedIP != "" {
+				last, _ := store.GetLatest()
+				if detectedIP != last {
+					if err := store.Insert(detectedIP); err != nil {
+						logger.Error("failed to save IP", "err", err)
+					} else {
+						logger.Info("IP change detected", "ip", detectedIP)
+					}
+				}
+			}
+
+			select {
+			case <-gCtx.Done():
+				return nil
+			case <-ticker.C:
+			}
+		}
+	})
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /{$}", handleList(store, logger))
+	mux.HandleFunc("GET /p/{page}", handleList(store, logger))
+
+	srv := &http.Server{
+		Addr:         ":8080",
+		Handler:      mux,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
+
+	g.Go(func() error {
+		logger.Info("server started", "url", "http://localhost:8080")
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return err
+		}
+		return nil
+	})
+
+	g.Go(func() error {
+		<-gCtx.Done()
+		sCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return srv.Shutdown(sCtx)
+	})
+
+	if err := g.Wait(); err != nil && !errors.Is(err, context.Canceled) {
+		logger.Error("application error", "err", err)
+	}
+}
+
+func handleList(store *Store, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		page, _ := strconv.Atoi(r.PathValue("page"))
+		if page < 1 {
+			page = 1
+		}
+		query := r.URL.Query().Get("q")
+
+		records, hasMore, err := store.FetchPage(query, page, 50)
+		if err != nil {
+			slog.Error("DB Error", "err", err)
+			http.Error(w, "Internal Error", 500)
+			return
+		}
+
+		if r.Header.Get("HX-Request") == "true" && r.Header.Get("HX-Target") == "main-content" {
+			_ = MainContent(records, query, page, hasMore).Render(r.Context(), w)
+			return
+		}
+		_ = Page(records, query, page, hasMore).Render(r.Context(), w)
+	}
 }
