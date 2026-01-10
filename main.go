@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"embed"
 	"errors"
 	"log/slog"
 	"net"
@@ -16,7 +17,10 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-//go:generate templ generate
+//go:generate go tool templ generate
+
+//go:embed assets/*
+var assetsFS embed.FS
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
@@ -43,18 +47,20 @@ func main() {
 		}
 
 		providers := []provider{
-			{server: "8.8.8.8:53", host: "o-o.myaddr.l.google.com", isTXT: true},
-			{server: "208.67.222.222:53", host: "myip.opendns.com", isTXT: false},
+			{server: "216.239.32.10:53", host: "o-o.myaddr.l.google.com", isTXT: true}, // ns1.google.com
+			{server: "193.108.88.1:53", host: "whoami.akamai.net", isTXT: false},       // ns1-1.akamaitech.net
+			{server: "208.67.222.222:53", host: "myip.opendns.com", isTXT: false},      // resolver1.opendns.com
 		}
 
 		for {
 			var detectedIP string
+
 			for _, p := range providers {
 				resolver := &net.Resolver{
 					PreferGo: true,
 					Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
 						d := net.Dialer{Timeout: 5 * time.Second}
-						return d.DialContext(ctx, "udp", p.server)
+						return d.DialContext(ctx, "udp4", p.server)
 					},
 				}
 
@@ -71,7 +77,7 @@ func main() {
 					}
 				}
 
-				if ip := net.ParseIP(raw); ip != nil {
+				if ip := net.ParseIP(raw); ip != nil && ip.To4() != nil {
 					detectedIP = ip.String()
 					break
 				}
@@ -97,6 +103,7 @@ func main() {
 	})
 
 	mux := http.NewServeMux()
+	mux.Handle("GET /assets/", http.FileServer(http.FS(assetsFS)))
 	mux.HandleFunc("GET /{$}", handleList(store, logger))
 	mux.HandleFunc("GET /p/{page}", handleList(store, logger))
 
@@ -137,7 +144,6 @@ func handleList(store *Store, logger *slog.Logger) http.HandlerFunc {
 
 		records, hasMore, err := store.FetchPage(query, page, 50)
 		if err != nil {
-			slog.Error("DB Error", "err", err)
 			http.Error(w, "Internal Error", 500)
 			return
 		}

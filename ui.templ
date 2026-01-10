@@ -20,13 +20,13 @@ templ MainContent(records []Record, query string, page int, hasMore bool) {
 				<div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem;">Current Public IP</div>
 				<div class="ip-display">{ records[0].IP }</div>
 				<div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">
-					Last observed: { records[0].Timestamp.Format("Jan 02, 15:04:05 MST") }
+					{ records[0].Timestamp.Format("Jan 02, 15:04:05 MST") }
 				</div>
 			</section>
 		}
 		<table class="history-table">
 			<thead>
-				<tr><th>Timestamp</th><th>Observed IP</th></tr>
+				<tr><th>Timestamp</th><th>IP Address</th></tr>
 			</thead>
 			<tbody>
 				for _, r := range records {
@@ -73,7 +73,7 @@ templ Page(records []Record, query string, page int, hasMore bool) {
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 			<title>IP History</title>
 			<link rel="icon" href="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"/>
-			<script src="https://unpkg.com/htmx.org@1.9.10"></script>
+			<script src="/assets/htmx.min.js"></script>
 			<style>
 				:root { --bg: #0a0a0c; --card: #16161a; --border: #2d2d33; --text: #ececed; --text-muted: #94949e; --primary: #3b82f6; }
 				html { scrollbar-gutter: stable; overflow-y: auto; }
