@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -25,7 +26,15 @@ var assetsFS embed.FS
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	store, err := NewStore("history.db")
+	dbPath := "./data/history.db"
+	dbDir := filepath.Dir(dbPath)
+
+	if err := os.MkdirAll(dbDir, 0755); err != nil {
+		logger.Error("failed to create data directory", "err", err)
+		os.Exit(1)
+	}
+
+	store, err := NewStore(dbPath)
 	if err != nil {
 		logger.Error("db init failed", "err", err)
 		os.Exit(1)

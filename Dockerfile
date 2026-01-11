@@ -7,7 +7,6 @@ FROM golang:alpine AS build-stage
 RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY --from=generate-stage /app /app
-
 RUN CGO_ENABLED=0 go build \
     -buildvcs=false \
     -ldflags="-s -w" \
@@ -15,8 +14,8 @@ RUN CGO_ENABLED=0 go build \
 
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates
-WORKDIR /app/
-COPY --from=build-stage /app/iphistory .
-
+RUN mkdir -p /data
+COPY --from=build-stage /app/iphistory /usr/local/bin/iphistory
+WORKDIR /
 EXPOSE 8080
-CMD ["./iphistory"]
+CMD ["/usr/local/bin/iphistory"]
