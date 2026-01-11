@@ -1,0 +1,264 @@
+:root {
+    --bg: #0a0a0c;
+    --card: #16161a;
+    --border: #2d2d33;
+    --text: #ececed;
+    --text-muted: #94949e;
+    --primary: #3b82f6;
+}
+
+html {
+    scrollbar-gutter: stable;
+    overflow-y: auto;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    background-color: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 2rem 1rem;
+}
+
+.container {
+    max-width: 800px;
+    margin-inline: auto;
+}
+
+header {
+    margin-bottom: 2.5rem;
+}
+
+header h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+}
+
+header p {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+a.title-link {
+    text-decoration: none;
+    color: inherit;
+    display: inline-block;
+}
+
+a.title-link:hover h1 {
+    color: var(--primary);
+}
+
+.search-form {
+    margin-bottom: 2rem;
+}
+
+.search-wrapper {
+    position: relative;
+    width: 100%;
+    display: flex;
+}
+
+.search-input {
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    padding-right: 2.5rem;
+    color: var(--text);
+    font-size: 1rem;
+    transition: border-color 0.2s;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+.search-input:placeholder-shown + .clear-input {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.clear-input {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.5rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 5px;
+    transition: opacity 0.2s;
+}
+
+.clear-input:hover {
+    color: var(--text);
+}
+
+.current-ip-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.current-ip-card div:first-child {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+
+.current-ip-card div:last-child {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.5rem;
+}
+
+.ip-display {
+    font-family: ui-monospace, monospace;
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--primary);
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.history-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+th,
+td {
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+th {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.history-table td:first-child {
+    color: var(--text-muted);
+}
+
+.history-table td:last-child {
+    font-family: ui-monospace, monospace;
+    font-weight: 500;
+}
+
+.copyable {
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.copyable:hover {
+    color: var(--primary);
+}
+
+.time-relative {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.2rem;
+}
+
+.pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1.5rem;
+}
+
+.pagination span {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.nav-link {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 0.875rem;
+}
+
+.nav-link:hover {
+    border-color: var(--primary);
+}
+
+.nav-link.disabled {
+    opacity: 0.2;
+    pointer-events: none;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem;
+    background: var(--card);
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    color: var(--text-muted);
+}
+
+.btn-ghost {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 0.6rem 1.2rem;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    margin-top: 1rem;
+    transition: all 0.2s;
+}
+
+.btn-ghost:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.search-meta {
+    margin-bottom: 1rem;
+    font-size: 0.875rem;
+    display: flex;
+    justify-content: space-between;
+}
+
+.search-meta a {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.search-meta a:hover {
+    text-decoration: underline;
+}
+
+.copied {
+    color: #10b981 !important;
+}

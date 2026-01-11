@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 func pathBuilder(page int, query string) string {
 	base := "/"
@@ -13,54 +16,103 @@ func pathBuilder(page int, query string) string {
 	return base
 }
 
+func humanize(t time.Time) string {
+	duration := time.Since(t)
+	switch {
+	case duration < time.Minute:
+		return "just now"
+	case duration < time.Hour:
+		return fmt.Sprintf("%dm ago", int(duration.Minutes()))
+	case duration < time.Hour*24:
+		return fmt.Sprintf("%dh ago", int(duration.Hours()))
+	default:
+		return t.Format("Jan 02")
+	}
+}
+
+templ navLink(text string, page int, query string, active bool) {
+	if active {
+		<a
+			href={ templ.SafeURL(pathBuilder(page, query)) }
+			hx-get={ pathBuilder(page, query) }
+			hx-target="#main-content"
+			hx-push-url="true"
+			class="nav-link"
+		>{ text }</a>
+	} else {
+		<a class="nav-link disabled">{ text }</a>
+	}
+}
+
 templ MainContent(records []Record, query string, page int, hasMore bool) {
-	<div id="main-content" class="fade-in">
+	<title>
+		if query != "" {
+			IP History - { query }
+		} else if page > 1 {
+			IP History - Page { fmt.Sprint(page) }
+		} else {
+			IP History
+		}
+	</title>
+	<div id="main-content">
+		if query != "" {
+			<div class="search-meta">
+				<span>Showing results for "<strong>{ query }</strong>"</span>
+				<a
+					href="/"
+					hx-get="/"
+					hx-target="#main-content"
+					hx-push-url="true"
+					hx-on:click="document.querySelector('.search-input').value = ''"
+				>Clear Search</a>
+			</div>
+		}
 		if page == 1 && query == "" && len(records) > 0 {
 			<section class="current-ip-card">
-				<div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem;">Current Public IP</div>
-				<div class="ip-display">{ records[0].IP }</div>
-				<div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">
-					{ records[0].Timestamp.Format("Jan 02, 15:04:05 MST") }
-				</div>
+				<div>Current Public IP</div>
+				<div class="ip-display" onclick="copyToClipboard(this.innerText, this)">{ records[0].IP }</div>
+				<div>{ records[0].Timestamp.Format("Jan 02, 15:04:05 MST") } ({ humanize(records[0].Timestamp) })</div>
 			</section>
 		}
-		<table class="history-table">
-			<thead>
-				<tr><th>Timestamp</th><th>IP Address</th></tr>
-			</thead>
-			<tbody>
-				for _, r := range records {
+		if len(records) > 0 {
+			<table class="history-table">
+				<thead>
 					<tr>
-						<td style="color: var(--text-muted);">{ r.Timestamp.Format("2006-01-02 15:04:05") }</td>
-						<td style="font-family: ui-monospace, monospace; font-weight: 500;">{ r.IP }</td>
+						<th scope="col">Timestamp</th>
+						<th scope="col">IP Address</th>
 					</tr>
+				</thead>
+				<tbody>
+					for _, r := range records {
+						<tr>
+							<td>
+								{ r.Timestamp.Format("2006-01-02 15:04:05") }
+								<span class="time-relative">{ humanize(r.Timestamp) }</span>
+							</td>
+							<td class="copyable" onclick="copyToClipboard(this.innerText, this)">{ r.IP }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		} else {
+			<div class="empty-state">
+				<p>No IP found matching your search.</p>
+				if query != "" {
+					<button
+						type="button"
+						class="btn-ghost"
+						hx-get="/"
+						hx-target="#main-content"
+						hx-push-url="true"
+						hx-on:click="document.querySelector('.search-input').value = ''"
+					>Return to Home</button>
 				}
-			</tbody>
-		</table>
+			</div>
+		}
 		<div class="pagination">
-			if page > 1 {
-				<a
-					href={ templ.SafeURL(pathBuilder(page-1, query)) }
-					hx-get={ pathBuilder(page-1, query) }
-					hx-target="#main-content"
-					hx-push-url="true"
-					class="nav-link"
-				>← Previous</a>
-			} else {
-				<a class="nav-link disabled">← Previous</a>
-			}
-			<span style="font-size: 0.875rem; color: var(--text-muted);">Page { fmt.Sprint(page) }</span>
-			if hasMore {
-				<a
-					href={ templ.SafeURL(pathBuilder(page+1, query)) }
-					hx-get={ pathBuilder(page+1, query) }
-					hx-target="#main-content"
-					hx-push-url="true"
-					class="nav-link"
-				>Next →</a>
-			} else {
-				<a class="nav-link disabled">Next →</a>
-			}
+			@navLink("← Previous", page-1, query, page > 1)
+			<span>Page { fmt.Sprint(page) }</span>
+			@navLink("Next →", page+1, query, hasMore)
 		</div>
 	</div>
 }
@@ -73,43 +125,53 @@ templ Page(records []Record, query string, page int, hasMore bool) {
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 			<title>IP History</title>
 			<link rel="icon" href="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"/>
-			<script src="/assets/htmx.min.js"></script>
-			<style>
-				:root { --bg: #0a0a0c; --card: #16161a; --border: #2d2d33; --text: #ececed; --text-muted: #94949e; --primary: #3b82f6; }
-				html { scrollbar-gutter: stable; overflow-y: auto; }
-				* { box-sizing: border-box; margin: 0; padding: 0; }
-				body { font-family: ui-sans-serif, system-ui, sans-serif; background-color: var(--bg); color: var(--text); line-height: 1.6; padding: 2rem 1rem; }
-				.container { max-width: 800px; margin-inline: auto; }
-				header { margin-bottom: 2.5rem; }
-				h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: -0.025em; }
-				a.title-link { text-decoration: none; color: inherit; display: inline-block; }
-				a.title-link:hover h1 { color: var(--primary); }
-				.search-form { margin-bottom: 2rem; display: flex; gap: 0.5rem; }
-				.search-input { flex: 1; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; color: var(--text); font-size: 1rem; }
-				.search-input:focus { outline: none; border-color: var(--primary); }
-				.btn-search { background: var(--primary); color: white; border: none; padding: 0 1.5rem; border-radius: 8px; font-weight: 600; cursor: pointer; }
-				.current-ip-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem; }
-				.ip-display { font-family: ui-monospace, monospace; font-size: 2rem; font-weight: 700; color: var(--primary); }
-				.history-table { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-				th, td { padding: 1rem; text-align: left; border-bottom: 1px solid var(--border); }
-				th { font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); background: rgba(255,255,255,0.02); }
-				.pagination { display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; }
-				.nav-link { background: var(--card); border: 1px solid var(--border); color: var(--text); padding: 0.5rem 1rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; }
-				.nav-link:hover { border-color: var(--primary); }
-				.nav-link.disabled { opacity: 0.2; pointer-events: none; }
-				.fade-in { animation: fadeIn 0.15s ease-out; }
-				@keyframes fadeIn { from { opacity: 0.5; transform: translateY(2px); } to { opacity: 1; transform: translateY(0); } }
-			</style>
+			<script src="/assets/htmx.min.js" defer></script>
+			<link rel="stylesheet" type="text/css" href="/assets/style.css"/>
+			<script>
+				function copyToClipboard(text, el) {
+	                navigator.clipboard.writeText(text);
+	                el.classList.add("copied");
+	                setTimeout(() => {
+	                    el.classList.remove("copied");
+	                }, 1000);
+	            }
+
+				document.addEventListener('keydown', function(e) {
+					if (e.key === '/' && document.activeElement.tagName !== 'INPUT') {
+						e.preventDefault();
+						document.querySelector('.search-input').focus();
+					}
+				});
+			</script>
 		</head>
-		<body hx-boost="true">
+		<body>
 			<main class="container">
 				<header>
-					<a href="/" hx-boost="false" class="title-link"><h1>IP History</h1></a>
-					<p style="color: var(--text-muted); font-size: 0.875rem;">A simple timeline of your public IP changes</p>
+					<a href="/" class="title-link"><h1>IP History</h1></a>
+					<p>A simple timeline of your public IP changes</p>
 				</header>
-				<form class="search-form" hx-get="/" hx-target="#main-content" hx-push-url="true">
-					<input type="text" name="q" class="search-input" placeholder="Search..." value={ query } autocomplete="off"/>
-					<button type="submit" class="btn-search">Search</button>
+				<form class="search-form" hx-get="/" hx-target="#main-content" hx-push-url="true" hx-sync="closest form:abort">
+					<div class="search-wrapper">
+						<input
+							type="text"
+							name="q"
+							class="search-input"
+							placeholder="Search IPs... (Press '/' to focus)"
+							value={ query }
+							autocomplete="off"
+							hx-get="/"
+							hx-trigger="keyup changed delay:300ms, search"
+							hx-target="#main-content"
+						/>
+						<button
+							type="button"
+							class="clear-input"
+							hx-get="/"
+							hx-target="#main-content"
+							hx-push-url="true"
+							onclick="this.previousElementSibling.value = ''; this.previousElementSibling.focus();"
+						>×</button>
+					</div>
 				</form>
 				@MainContent(records, query, page, hasMore)
 			</main>
